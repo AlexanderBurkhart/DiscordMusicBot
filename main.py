@@ -46,8 +46,12 @@ async def play(ctx: commands.Context, link: str):
     stopped = False
     if not link:
         return
-    await ctx.respond(f'Adding audio to the queue...')
+    await ctx.respond(f'Adding audio {link} to the queue...')
     if ctx.voice_client is None:
+        if not ctx.author.voice.channel:
+            await ctx.send(f'User is not in a channel. Please join a channel and try again.')
+            return
+        await ctx.send(f'Added {link} to the queue.')
         await ctx.author.voice.channel.connect()
 
     ydl_opts = {
@@ -57,17 +61,22 @@ async def play(ctx: commands.Context, link: str):
             'preferredcodec': 'mp3',
             'preferredquality': '1',
         }],
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
     }
-    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(link, download=False)
-        title = info.get('title', None)
+    try:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(link, download=False)
+            title = info.get('title', None)
+    except:
+        await ctx.send(f'Error adding it to the queue. Please try again.')
+        return
     queue.append({
         'title': title,
         'ctx': ctx, 
         'link': link, 
         'has_played': False
     })
-    await ctx.send(f'Added {link} to the queue.')
+    await ctx.send(f'Added {title} to the queue.')
 
 @bot.slash_command(name='resume', description='Play audio from a YouTube link', guild_ids=['385298091332468736', '233955926518923265'])
 async def resume(ctx: commands.Context):
@@ -108,6 +117,10 @@ async def current(ctx: commands.Context):
 # Define a command to stop audio playback
 @bot.slash_command(name='queue', description='View audio queue', guild_ids=['385298091332468736', '233955926518923265'])
 async def view_queue(ctx: commands.Context):
+    if not queue:
+        await ctx.respond("**Nothing in the queue**")
+        return
+
     styled_queue_string = '## Current Queue\n'
     for i, clip in enumerate(queue):
         styled_queue_string += '`%i.` [%s](%s) %s\n' % (i+1, clip['title'], clip['link'], '[***Current***]' if i == 0 else '')
